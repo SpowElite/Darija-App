@@ -1,0 +1,780 @@
+import React, { useState, useEffect, useMemo } from 'react';
+import { 
+  Play, BookOpen, GraduationCap, LayoutDashboard, 
+  Settings, Star, Flame, Trophy, CheckCircle2, 
+  ArrowRight, X, Volume2, Info, BrainCircuit, RefreshCw,
+  LogOut, BarChart3, Users, Clock, Calendar, 
+  MessageCircle, Target, ShieldCheck, Plus, Search,
+  Lock, AlertTriangle, Eye, EyeOff, UserPlus, ChevronLeft, Delete,
+  MapPin, Coffee, ShoppingBag
+} from 'lucide-react';
+
+// ==========================================
+// FIREBASE IMPORTS
+// ==========================================
+import { initializeApp } from 'firebase/app';
+import { 
+  getAuth, signInWithEmailAndPassword, signOut, 
+  onAuthStateChanged, createUserWithEmailAndPassword 
+} from 'firebase/auth';
+import { 
+  getFirestore, doc, setDoc, getDoc, collection, getDocs, updateDoc
+} from 'firebase/firestore';
+
+// ==========================================
+// 1. FIREBASE KONFIGURATION
+// ==========================================
+const firebaseConfig = typeof __firebase_config !== 'undefined' 
+  ? JSON.parse(__firebase_config) 
+  : {
+      apiKey: "DEINE_API_KEY",
+      authDomain: "DEIN_PROJEKT.firebaseapp.com",
+      projectId: "DEIN_PROJEKT_ID",
+      storageBucket: "DEIN_PROJEKT.firebasestorage.app",
+      messagingSenderId: "DEINE_SENDER_ID",
+      appId: "DEINE_APP_ID"
+    };
+
+const app = initializeApp(firebaseConfig);
+const auth = getAuth(app);
+const db = getFirestore(app);
+const appId = typeof __app_id !== 'undefined' ? __app_id : 'darija-premium-app';
+
+const secondaryApp = initializeApp(firebaseConfig, "SecondaryApp");
+const secondaryAuth = getAuth(secondaryApp);
+
+// ==========================================
+// 2. ERWEITERTES CURRICULUM (MAROKKO CONTENT)
+// ==========================================
+const CURRICULUM = {
+  levels: [
+    { id: 'A0', name: 'Grundlagen', desc: 'Die absolute Basis' },
+    { id: 'A1', name: 'Alltag & Überleben', desc: 'Markt, Taxi, Familie' },
+    { id: 'A2', name: 'Flüssige Gespräche', desc: 'Sicher kommunizieren' },
+  ],
+  modules: [
+    { id: 'm1', level: 'A0', title: 'Begrüßung & Höflichkeit', icon: '🌙' },
+    { id: 'm2', level: 'A1', title: 'Markt & Verhandeln (Suq)', icon: '🛍️' },
+    { id: 'm3', level: 'A1', title: 'Transport (Taxi & Bus)', icon: '🚕' },
+    { id: 'm4', level: 'A1', title: 'Familie & Zuhause', icon: '🏠' },
+    { id: 'm5', level: 'A1', title: 'Wichtige Verben', icon: '⚡' },
+  ],
+  dictionary: [
+    // Begrüßung & Basics
+    { id: 'w1', module: 'm1', darija: 'Wakha', arabic: 'واخا', german: 'Okay / Einverstanden', tarifit: 'Wakha', sim: 'identical', note: 'Direkt aus dem Tamazight übernommen. Wird im ganzen Land genutzt.' },
+    { id: 'w2', module: 'm1', darija: 'Chwiya', arabic: 'شوية', german: 'Ein bisschen', tarifit: 'Cwayt', sim: 'high', note: 'Gleiche Wurzel wie im Riffischen.' },
+    { id: 'w3', module: 'm1', darija: 'Bzaf', arabic: 'بزاف', german: 'Viel / Sehr', tarifit: 'Aṭṭas', sim: 'none', note: 'Eines der wichtigsten Wörter in Darija. Ersetzt das hocharabische Kathiran.' },
+    { id: 'w4', module: 'm1', darija: 'Daba', arabic: 'دابا', german: 'Jetzt', tarifit: 'Ruxa', sim: 'none', note: 'Wird extrem oft genutzt (Daba daba = sofort).' },
+    { id: 'w5', module: 'm1', darija: 'Mzyan', arabic: 'مزيان', german: 'Gut', tarifit: 'Mlih', sim: 'none', note: 'Das marokkanische Universalwort für Gut/Schön/Lecker.' },
+    { id: 'w6', module: 'm1', darija: 'Chokran', arabic: 'شكرا', german: 'Danke', tarifit: 'Chokran', sim: 'identical', note: 'Hocharabischer Ursprung, aber universell.' },
+    { id: 'w7', module: 'm1', darija: '3afak', arabic: 'عفاك', german: 'Bitte (wenn man etwas möchte)', tarifit: 'Tqadigh', sim: 'none', note: 'Nutze das am Ende JEDES Satzes, wenn du etwas bestellst.' },
+    
+    // Markt & Verhandeln
+    { id: 'w8', module: 'm2', darija: 'Bch7al?', arabic: 'بشحال', german: 'Wie viel kostet das?', tarifit: 'Mncak?', sim: 'none', note: 'Der wichtigste Satz auf dem Markt.' },
+    { id: 'w9', module: 'm2', darija: 'Ghali', arabic: 'غالي', german: 'Teuer', tarifit: 'Ghali', sim: 'identical', note: 'Arabisches Lehnwort im Tarifit. Du kennst es!' },
+    { id: 'w10', module: 'm2', darija: 'Rkhis', arabic: 'رخيص', german: 'Billig', tarifit: 'Rkhis', sim: 'identical', note: 'Ebenfalls identisch.' },
+    { id: 'w11', module: 'm2', darija: 'N9es', arabic: 'نقص', german: 'Geh mit dem Preis runter', tarifit: 'Snaqs', sim: 'high', note: 'N9es chwiya = Geh ein bisschen runter.' },
+    { id: 'w12', module: 'm2', darija: 'Flous', arabic: 'فلوس', german: 'Geld', tarifit: 'Iqariden', sim: 'none', note: 'Sehr wichtiges Alltagswort.' },
+    { id: 'w13', module: 'm2', darija: 'Sarout', arabic: 'ساروت', german: 'Schlüssel', tarifit: 'Tasarut', sim: 'high', note: 'Tamazight Ursprung! Die Darija-Form ist nur die maskuline Version.' },
+
+    // Transport
+    { id: 'w14', module: 'm3', darija: 'Fin?', arabic: 'فين', german: 'Wo?', tarifit: 'Mani?', sim: 'none', note: 'Fin kayna lma7ata? = Wo ist der Bahnhof?' },
+    { id: 'w15', module: 'm3', darija: 'Hna', arabic: 'هنا', german: 'Hier', tarifit: 'Da', sim: 'none', note: 'W9ef hna 3afak = Halte hier, bitte (zum Taxifahrer).' },
+    { id: 'w16', module: 'm3', darija: 'Lyamine', arabic: 'ليمن', german: 'Rechts', tarifit: 'Ayffus', sim: 'none', note: 'Dir 3la lyamine = Biege rechts ab.' },
+    { id: 'w17', module: 'm3', darija: 'Lisser', arabic: 'ليسر', german: 'Links', tarifit: 'Azelmad', sim: 'none', note: 'Dir 3la lisser = Biege links ab.' },
+
+    // Verben (Ayoubs Turbo)
+    { id: 'w18', module: 'm5', darija: 'Bgha', arabic: 'بغى', german: 'Wollen', tarifit: 'Yexs', sim: 'none', note: 'Ana bghit = Ich will / Ich möchte.' },
+    { id: 'w19', module: 'm5', darija: 'Mcha', arabic: 'مشى', german: 'Gehen', tarifit: 'Yuda / Irah', sim: 'none', note: 'Ana mchit = Ich bin gegangen.' },
+    { id: 'w20', module: 'm5', darija: 'Dar', arabic: 'دار', german: 'Machen / Tun', tarifit: 'Ygga', sim: 'none', note: 'Chno kaddir? = Was machst du gerade?' },
+  ],
+  grammar: [
+    {
+      id: 'g1', module: 'm1',
+      title: 'Das marokkanische "Gut" (Mzyan)',
+      text: 'Im Gegensatz zum Hocharabischen "Jayyid" wird in Marokko fast ausschließlich "Mzyan" (مزيان) verwendet. Es ist das exakte Äquivalent zu deinem riffischen "Mlih". Du kannst es als Frage ("Mzyan?") oder als Bestätigung ("Mzyan!") nutzen.'
+    },
+    {
+      id: 'g2', module: 'm2',
+      title: 'Verhandeln wie ein Einheimischer',
+      text: 'Wenn dir ein Händler auf dem Suq einen Preis nennt, antworte niemals sofort mit "Wakha". Ein respektvolles Verhandeln wird erwartet. Nutze "Ghali bzaf! N9es chwiya 3afak" (Sehr teuer! Geh ein bisschen runter, bitte), um das Eis zu brechen.'
+    },
+    {
+      id: 'g3', module: 'm5',
+      title: 'Das Präsens (Ka-)',
+      text: 'In Darija wird das Präsens (was du gerade tust) mit dem Präfix "Ka-" oder "Ta-" gebildet. Beispiel Verb Machen (Dar): Ich mache = Ka-ndir. Du machst = Ka-ddir.'
+    }
+  ],
+  dialogues: [
+    {
+      id: 'd1', module: 'm2', title: 'Beim Teppichhändler',
+      lines: [
+        { s: 'Händler', darija: 'Salam khouya, tfaddal.', d: 'Hallo mein Bruder, bitte tritt ein.' },
+        { s: 'Ayoub', darija: 'Salam. Bch7al had zrbiya?', d: 'Hallo. Wie viel kostet dieser Teppich?' },
+        { s: 'Händler', darija: 'Hadi? 500 Dirham. Mzyana bzaf.', d: 'Dieser? 500 Dirham. Er ist sehr gut.' },
+        { s: 'Ayoub', darija: 'La la, ghali bzaf! N9es chwiya.', d: 'Nein nein, sehr teuer! Geh ein bisschen runter.' },
+        { s: 'Händler', darija: 'Wakha, 400 Dirham l khouya.', d: 'Okay, 400 Dirham für meinen Bruder.' },
+        { s: 'Ayoub', darija: 'Mzyan. Hakek flous.', d: 'Gut. Hier ist das Geld.' },
+      ]
+    },
+    {
+      id: 'd2', module: 'm3', title: 'Im Petit Taxi',
+      lines: [
+        { s: 'Ayoub', darija: 'Salam, khouya. Wach khawi?', d: 'Hallo Bruder. Bist du frei (leer)?' },
+        { s: 'Fahrer', darija: 'Wa lyeeh. Fin bghiti tmchi?', d: 'Ja. Wo möchtest du hin?' },
+        { s: 'Ayoub', darija: 'Bghit nmchi l Jame3 Lfna, 3afak.', d: 'Ich möchte zur Jemaa el-Fna, bitte.' },
+        { s: 'Fahrer', darija: 'Wakha, rkeb.', d: 'Okay, steig ein.' },
+        { s: 'Ayoub', darija: 'W9ef hna 3la lyamine, 3afak. Chokran.', d: 'Halte hier auf der rechten Seite, bitte. Danke.' },
+      ]
+    }
+  ]
+};
+
+// ==========================================
+// HAUPTANWENDUNG
+// ==========================================
+export default function App() {
+  const [user, setUser] = useState(null);
+  const [userProfile, setUserProfile] = useState(null);
+  const [view, setView] = useState('checking_auth'); 
+  const [lessonConfig, setLessonConfig] = useState({ duration: 15, module: 'm1' });
+  
+  useEffect(() => {
+    const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
+      if (currentUser) {
+        setUser(currentUser);
+        setView('verifying_db');
+        verifyUserPermissions(currentUser);
+      } else {
+        setUser(null);
+        setUserProfile(null);
+        setView('profile_selection');
+      }
+    });
+    return () => unsubscribe();
+  }, []);
+
+  const verifyUserPermissions = async (currentUser) => {
+    try {
+      const profileRef = doc(db, 'artifacts', appId, 'users', currentUser.uid, 'profile', 'main');
+      const docSnap = await getDoc(profileRef);
+
+      if (docSnap.exists()) {
+        const data = docSnap.data();
+        setUserProfile(data);
+        if (data.role === 'admin') setView('admin');
+        else setView('dashboard');
+      } else {
+        if (currentUser.email.toLowerCase() === 'admin@darija-lernen.de') {
+          const adminProfile = {
+            role: 'admin', email: currentUser.email, name: 'Ayoub (Admin)', pin: 'Admin-0000', xp: 0, wordsLearned: 0, level: 1
+          };
+          await setDoc(profileRef, adminProfile);
+          await setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'users', currentUser.uid), {
+            id: currentUser.uid, name: 'Ayoub (Admin)', email: currentUser.email, role: 'admin'
+          });
+          setUserProfile(adminProfile);
+          setView('admin');
+        } else {
+          await signOut(auth);
+          setView('profile_selection');
+        }
+      }
+    } catch (error) {
+      await signOut(auth);
+      setView('profile_selection');
+    }
+  };
+
+  const handleLogout = async () => {
+    await signOut(auth);
+    setView('profile_selection');
+  };
+
+  const saveLessonProgress = async (xpGained, wordsCount) => {
+    const newXP = (userProfile.xp || 0) + xpGained;
+    const newLevel = Math.floor(newXP / 500) + 1;
+    
+    const profileRef = doc(db, 'artifacts', appId, 'users', user.uid, 'profile', 'main');
+    await updateDoc(profileRef, {
+      xp: newXP,
+      level: newLevel,
+      wordsLearned: (userProfile.wordsLearned || 0) + wordsCount,
+      lastActive: new Date().toISOString()
+    });
+    
+    setUserProfile(prev => ({ ...prev, xp: newXP, level: newLevel, wordsLearned: (prev.wordsLearned || 0) + wordsCount }));
+    setView('dashboard');
+  };
+
+  if (view === 'checking_auth' || view === 'verifying_db') {
+    return (
+      <div className="min-h-screen bg-stone-950 flex flex-col items-center justify-center text-amber-500 gap-6 relative">
+        <div className="absolute inset-0 opacity-10 bg-[radial-gradient(circle_at_center,_var(--tw-gradient-stops))] from-amber-900 via-stone-950 to-stone-950"></div>
+        <RefreshCw className="w-12 h-12 animate-spin relative z-10" />
+        <h1 className="text-xl font-bold text-stone-200 tracking-widest uppercase relative z-10">Lade Profil...</h1>
+      </div>
+    );
+  }
+
+  if (view === 'profile_selection') return <LoginFlow auth={auth} db={db} appId={appId} />;
+  
+  if (view === 'lesson') {
+    return (
+      <LessonEngine 
+        config={lessonConfig} 
+        onClose={() => setView('dashboard')} 
+        onComplete={saveLessonProgress}
+      />
+    );
+  }
+
+  return (
+    <div className="min-h-screen bg-stone-950 text-stone-200 font-sans flex flex-col md:flex-row selection:bg-amber-500/30 relative">
+      <div className="absolute top-0 left-0 w-full h-[500px] bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-amber-900/10 via-stone-950 to-stone-950 pointer-events-none"></div>
+      
+      <Sidebar profile={userProfile} currentView={view} setView={setView} onLogout={handleLogout} />
+
+      <main className="flex-1 max-w-6xl mx-auto w-full p-4 md:p-8 h-screen overflow-y-auto hide-scrollbar relative z-10">
+        {view === 'admin' && <AdminDashboard db={db} appId={appId} secondaryAuth={secondaryAuth} />}
+        {view === 'dashboard' && (
+          <UserDashboard 
+            stats={userProfile} 
+            onStartLesson={(dur, modId) => { setLessonConfig({ duration: dur, module: modId }); setView('lesson'); }} 
+          />
+        )}
+      </main>
+    </div>
+  );
+}
+
+// ==========================================
+// 1. LOGIN FLOW (Profil-Auswahl & PIN-Pad)
+// ==========================================
+function LoginFlow({ auth, db, appId }) {
+  const [profiles, setProfiles] = useState([]);
+  const [selectedProfile, setSelectedProfile] = useState(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const fetchPublicProfiles = async () => {
+      try {
+        const usersRef = collection(db, 'artifacts', appId, 'public', 'data', 'users');
+        const snapshot = await getDocs(usersRef);
+        let loadedProfiles = [];
+        snapshot.forEach(doc => loadedProfiles.push(doc.data()));
+
+        if (loadedProfiles.length === 0) {
+          loadedProfiles = [{ id: 'default-admin', name: 'Ayoub (Admin)', email: 'admin@darija-lernen.de', role: 'admin' }];
+        }
+        loadedProfiles.sort((a, b) => a.role === 'admin' ? -1 : 1);
+        setProfiles(loadedProfiles);
+        setLoading(false);
+      } catch (error) {
+        setProfiles([{ id: 'default-admin', name: 'Ayoub (Admin)', email: 'admin@darija-lernen.de', role: 'admin' }]);
+        setLoading(false);
+      }
+    };
+    fetchPublicProfiles();
+  }, [db, appId]);
+
+  if (loading) return <div className="min-h-screen bg-stone-950 flex items-center justify-center text-amber-500"><RefreshCw className="w-8 h-8 animate-spin" /></div>;
+
+  return (
+    <div className="min-h-screen bg-stone-950 flex flex-col items-center justify-center p-4 relative overflow-hidden">
+      <div className="absolute top-0 left-0 w-full h-full bg-[radial-gradient(circle_at_center,_var(--tw-gradient-stops))] from-amber-950/20 via-stone-950 to-stone-950 pointer-events-none"></div>
+
+      {selectedProfile ? (
+        <PinPadScreen profile={selectedProfile} auth={auth} onBack={() => setSelectedProfile(null)} />
+      ) : (
+        <ProfileSelection profiles={profiles} onSelect={setSelectedProfile} />
+      )}
+    </div>
+  );
+}
+
+function ProfileSelection({ profiles, onSelect }) {
+  return (
+    <div className="relative z-10 w-full max-w-5xl flex flex-col items-center animate-in fade-in slide-in-from-bottom-4">
+      <div className="mb-12 text-center">
+        <h2 className="text-amber-500 font-bold tracking-[0.2em] uppercase text-sm mb-4">Darija Premium</h2>
+        <h1 className="text-4xl md:text-5xl font-bold text-white tracking-tight">Wer lernt heute?</h1>
+      </div>
+      
+      <div className="flex flex-wrap justify-center gap-6 md:gap-10">
+        {profiles.map(profile => (
+          <button key={profile.id} onClick={() => onSelect(profile)} className="flex flex-col items-center gap-4 group transition-transform hover:scale-105 active:scale-95">
+            <div className={`w-32 h-40 rounded-t-[3rem] rounded-b-2xl border-2 flex items-center justify-center text-5xl font-bold transition-all shadow-2xl relative overflow-hidden
+              ${profile.role === 'admin' 
+                ? 'bg-stone-900 border-amber-500/50 text-amber-400 group-hover:border-amber-400 group-hover:shadow-amber-900/20' 
+                : 'bg-stone-900 border-stone-700 text-stone-300 group-hover:border-emerald-500/50 group-hover:text-emerald-400 group-hover:shadow-emerald-900/20'}`}
+            >
+              {/* Zellige-Style Hint Background */}
+              <div className="absolute inset-0 opacity-10 bg-[url('data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIyMCIgaGVpZ2h0PSIyMCI+CjxyZWN0IHdpZHRoPSIyMCIgaGVpZ2h0PSIyMCIgZmlsbD0ibm9uZSIvPgo8cGF0aCBkPSJNMCAwbDEwIDEwbDEwLTEwSDB6IiBmaWxsPSIjZmZmIi8+Cjwvc3ZnPg==')]"></div>
+              <span className="relative z-10">{profile.name.charAt(0)}</span>
+            </div>
+            <span className="text-lg font-bold text-stone-400 group-hover:text-white transition-colors">{profile.name.split(' ')[0]}</span>
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function PinPadScreen({ profile, auth, onBack }) {
+  const [pin, setPin] = useState('');
+  const [error, setError] = useState(null);
+  const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    if (pin.length === 4) handleLoginAttempt();
+  }, [pin]);
+
+  const handleLoginAttempt = async () => {
+    setLoading(true); setError(null);
+    const isEmailAdmin = profile.email.toLowerCase() === 'admin@darija-lernen.de';
+    try {
+      let firebasePassword = isEmailAdmin ? `Admin-${pin}` : `PIN-${pin}`;
+      await signInWithEmailAndPassword(auth, profile.email, firebasePassword);
+    } catch (err) {
+      if (isEmailAdmin && (err.code === 'auth/user-not-found' || err.code === 'auth/invalid-credential')) {
+        try {
+          await createUserWithEmailAndPassword(auth, profile.email, `Admin-${pin}`);
+        } catch (createErr) {
+          setError('Setup fehlgeschlagen.'); setPin(''); setLoading(false);
+        }
+      } else {
+        setError('PIN falsch.'); setPin(''); setLoading(false);
+      }
+    }
+  };
+
+  const addDigit = (digit) => { if (pin.length < 4) setPin(prev => prev + digit); };
+  const removeDigit = () => setPin(prev => prev.slice(0, -1));
+
+  return (
+    <div className="relative z-10 w-full max-w-sm flex flex-col items-center animate-in fade-in zoom-in-95">
+      <button onClick={onBack} className="absolute -top-16 left-0 flex items-center gap-2 text-stone-500 hover:text-white transition-colors">
+        <ChevronLeft className="w-5 h-5" /> Zurück
+      </button>
+
+      <div className="text-center mb-8">
+        <div className={`w-20 h-24 mx-auto rounded-t-3xl rounded-b-xl border-2 flex items-center justify-center text-3xl font-bold mb-4
+            ${profile.role === 'admin' ? 'bg-stone-900 border-amber-500/50 text-amber-400' : 'bg-stone-900 border-stone-700 text-stone-300'}`}>
+          {profile.name.charAt(0)}
+        </div>
+        <h2 className="text-2xl font-bold text-white mb-1">PIN eingeben</h2>
+        <p className="text-stone-400 text-sm">für {profile.name}</p>
+      </div>
+
+      <div className={`flex gap-4 mb-8 ${error ? 'animate-bounce' : ''}`}>
+        {[0, 1, 2, 3].map(index => (
+          <div key={index} className={`w-4 h-4 rounded-full transition-all duration-300 ${pin.length > index ? 'bg-amber-500 scale-125 shadow-[0_0_15px_rgba(245,158,11,0.5)]' : 'bg-stone-800'}`} />
+        ))}
+      </div>
+
+      {error && <div className="text-red-400 text-sm font-medium mb-6">{error}</div>}
+      
+      <div className="grid grid-cols-3 gap-3 w-full">
+        {[1, 2, 3, 4, 5, 6, 7, 8, 9].map(num => (
+          <button key={num} disabled={loading} onClick={() => addDigit(num.toString())} className="h-16 bg-stone-900 border border-stone-800 rounded-2xl text-2xl font-bold text-white hover:bg-stone-800 hover:border-amber-900/50 active:scale-95 transition-all">
+            {num}
+          </button>
+        ))}
+        <div />
+        <button disabled={loading} onClick={() => addDigit('0')} className="h-16 bg-stone-900 border border-stone-800 rounded-2xl text-2xl font-bold text-white hover:bg-stone-800 active:scale-95 transition-all">0</button>
+        <button disabled={loading || pin.length === 0} onClick={removeDigit} className="h-16 bg-stone-900/50 border border-stone-800/50 rounded-2xl flex items-center justify-center text-stone-500 hover:text-white active:scale-95 transition-all"><Delete className="w-6 h-6" /></button>
+      </div>
+    </div>
+  );
+}
+
+// ==========================================
+// 2. USER DASHBOARD (Lektionen Starten)
+// ==========================================
+function UserDashboard({ stats, onStartLesson }) {
+  const [selectedTime, setSelectedTime] = useState(15);
+  const times = [10, 15, 30];
+
+  return (
+    <div className="space-y-10 animate-in fade-in duration-500 max-w-4xl relative z-10">
+      
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
+        <div>
+          <h2 className="text-amber-500 font-bold tracking-[0.2em] uppercase text-sm mb-2">Dein Lernpfad</h2>
+          <h1 className="text-4xl font-bold text-white mb-2">Ahlan, {stats?.name?.split(' ')[0] || 'Student'}.</h1>
+        </div>
+        
+        <div className="flex gap-4">
+          <div className="bg-stone-900 border border-stone-800 px-6 py-3 rounded-2xl flex flex-col items-center">
+            <span className="text-2xl font-bold text-amber-500">{stats?.level || 1}</span>
+            <span className="text-[10px] text-stone-500 uppercase font-bold tracking-wider">Level</span>
+          </div>
+          <div className="bg-stone-900 border border-stone-800 px-6 py-3 rounded-2xl flex flex-col items-center">
+            <span className="text-2xl font-bold text-emerald-500">{stats?.wordsLearned || 0}</span>
+            <span className="text-[10px] text-stone-500 uppercase font-bold tracking-wider">Wörter</span>
+          </div>
+        </div>
+      </div>
+
+      <div className="bg-gradient-to-br from-red-950/40 via-stone-900 to-stone-900 border border-red-900/30 rounded-[2.5rem] p-8 md:p-12 relative overflow-hidden shadow-2xl">
+        {/* Dekorativer Hintergrund */}
+        <div className="absolute -right-20 -bottom-20 opacity-10">
+          <svg width="300" height="300" viewBox="0 0 100 100" className="text-red-500 fill-current">
+            <polygon points="50,0 60,35 95,35 65,55 75,95 50,70 25,95 35,55 5,35 40,35" />
+          </svg>
+        </div>
+
+        <div className="relative z-10 flex flex-col md:flex-row gap-10 items-center justify-between">
+          <div className="flex-1 space-y-6">
+            <div>
+              <span className="bg-red-950/50 text-red-400 px-4 py-1.5 rounded-full text-xs font-bold uppercase tracking-widest mb-4 inline-block border border-red-900/50">
+                Nächste Einheit
+              </span>
+              <h2 className="text-3xl md:text-4xl font-bold text-white leading-tight">Markt & Verhandeln (Suq)</h2>
+              <p className="text-stone-400 mt-3 text-lg max-w-md">Lerne die Kunst des Verhandelns in Marokko. Deine Tarifit-Vorkenntnisse geben dir hier einen enormen Vorteil.</p>
+            </div>
+            
+            <div className="space-y-4">
+              <label className="text-sm font-bold text-stone-500 uppercase tracking-widest">Intensität wählen</label>
+              <div className="flex flex-wrap gap-3">
+                {times.map(t => (
+                  <button key={t} onClick={() => setSelectedTime(t)} className={`px-6 py-3 rounded-2xl font-bold text-lg transition-all ${selectedTime === t ? 'bg-amber-500 text-stone-950 shadow-[0_0_20px_rgba(245,158,11,0.3)]' : 'bg-stone-950 border border-stone-800 text-stone-400 hover:bg-stone-800 hover:text-white'}`}>
+                    {t} <span className="text-sm font-medium opacity-80">min</span>
+                  </button>
+                ))}
+              </div>
+            </div>
+          </div>
+          
+          <button onClick={() => onStartLesson(selectedTime, 'm2')} className="w-full md:w-auto bg-white text-stone-950 font-bold text-xl py-6 px-12 rounded-[2rem] flex items-center justify-center gap-4 hover:scale-105 transition-all group shadow-xl">
+            <Play className="w-8 h-8 text-red-700 group-hover:scale-110 transition-transform" /> Starten
+          </button>
+        </div>
+      </div>
+
+      <div>
+        <h3 className="text-xl font-bold text-white mb-6">Dein Lehrplan (Level A1)</h3>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          {CURRICULUM.modules.slice(1, 5).map((mod, i) => (
+            <div key={mod.id} className={`p-5 rounded-3xl border flex items-center gap-5 ${i === 0 ? 'bg-stone-900 border-amber-900/30' : 'bg-stone-950 border-stone-800/50 opacity-70'}`}>
+              <div className={`w-14 h-16 rounded-t-xl rounded-b-md flex items-center justify-center text-2xl ${i === 0 ? 'bg-amber-500/20 text-amber-500 border border-amber-500/20' : 'bg-stone-900 text-stone-600'}`}>
+                {mod.icon}
+              </div>
+              <div className="flex-1">
+                <h4 className="font-bold text-white text-lg">{mod.title}</h4>
+                <div className="text-sm text-stone-500 mt-1">Level {mod.level}</div>
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ==========================================
+// 3. LESSON ENGINE (Das Herzstück des Lernens)
+// ==========================================
+function LessonEngine({ config, onClose, onComplete }) {
+  // Dynamische Generierung der Lektion
+  const steps = useMemo(() => {
+    // Filtere Vokabeln des gewählten Moduls
+    const moduleWords = CURRICULUM.dictionary.filter(w => w.module === config.module);
+    const wordCount = config.duration >= 30 ? 6 : config.duration >= 15 ? 4 : 2;
+    const selectedWords = moduleWords.slice(0, wordCount);
+    
+    const s = [];
+    // 1. Flashcards zeigen
+    selectedWords.forEach(w => s.push({ type: 'flashcard', data: w }));
+    
+    // 2. Grammatik (falls vorhanden)
+    const grammarRule = CURRICULUM.grammar.find(g => g.module === config.module);
+    if (grammarRule) s.push({ type: 'grammar', data: grammarRule });
+    
+    // 3. Dialog (bei mind. 15 Min)
+    if (config.duration >= 15) {
+      const dialogue = CURRICULUM.dialogues.find(d => d.module === config.module);
+      if (dialogue) s.push({ type: 'dialogue', data: dialogue });
+    }
+
+    // 4. Kurzes Quiz zum Abschluss
+    selectedWords.forEach((w, i) => {
+      if (i % 2 === 0 || config.duration >= 30) {
+        s.push({
+          type: 'quiz',
+          data: {
+            question: `Was bedeutet "${w.darija}"?`,
+            options: [w.german, "Apfel", "Straße", "Gestern"].sort(() => Math.random() - 0.5),
+            correct: w.german
+          }
+        });
+      }
+    });
+
+    return s;
+  }, [config]);
+
+  const [stepIndex, setStepIndex] = useState(0);
+  const currentStep = steps[stepIndex];
+  const progress = (stepIndex / steps.length) * 100;
+
+  const handleNext = () => {
+    if (stepIndex < steps.length - 1) setStepIndex(stepIndex + 1);
+    else onComplete(config.duration * 15, steps.filter(s => s.type === 'flashcard').length);
+  };
+
+  return (
+    <div className="max-w-3xl mx-auto h-[95vh] flex flex-col relative animate-in zoom-in-95 duration-500 pt-6">
+      
+      {/* Navbar & Progress */}
+      <div className="flex items-center gap-6 mb-8">
+        <button onClick={onClose} className="p-4 bg-stone-900 border border-stone-800 rounded-2xl hover:bg-stone-800 text-stone-400 hover:text-white transition-colors">
+          <X className="w-6 h-6" />
+        </button>
+        <div className="flex-1 h-3 bg-stone-900 border border-stone-800 rounded-full overflow-hidden">
+          <div className="h-full bg-amber-500 transition-all duration-700 ease-out rounded-full shadow-[0_0_15px_rgba(245,158,11,0.8)]" style={{ width: `${progress}%` }} />
+        </div>
+      </div>
+
+      {/* Dynamic Content */}
+      <div className="flex-1 overflow-y-auto pb-32 hide-scrollbar flex flex-col justify-center">
+        {currentStep.type === 'flashcard' && <EngineFlashcard word={currentStep.data} />}
+        {currentStep.type === 'grammar' && <EngineGrammar grammar={currentStep.data} />}
+        {currentStep.type === 'dialogue' && <EngineDialogue dialogue={currentStep.data} />}
+        {currentStep.type === 'quiz' && <EngineQuiz quiz={currentStep.data} onCorrect={handleNext} />}
+      </div>
+
+      {/* Next Button */}
+      {currentStep.type !== 'quiz' && (
+        <div className="absolute bottom-8 left-0 right-0">
+          <button onClick={handleNext} className="w-full bg-amber-500 hover:bg-amber-400 text-stone-950 font-bold text-2xl py-6 rounded-[2rem] flex items-center justify-center gap-4 transition-all shadow-2xl shadow-amber-500/20 active:scale-[0.98]">
+            {stepIndex === steps.length - 1 ? 'Abschließen & XP sammeln' : 'Weiter'} <ArrowRight className="w-8 h-8" />
+          </button>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// Engine: Vokabelkarte
+function EngineFlashcard({ word }) {
+  return (
+    <div className="space-y-8 text-center animate-in slide-in-from-right-8 duration-500">
+      <div className="inline-block px-5 py-2 bg-stone-900 text-stone-400 text-xs font-bold tracking-[0.2em] uppercase rounded-full border border-stone-800 mb-2">
+        Neues Vokabular
+      </div>
+      
+      <div className="bg-stone-900 border border-stone-800 rounded-[3rem] p-12 relative shadow-2xl">
+        <h2 className="text-6xl md:text-7xl font-bold text-white mb-6 tracking-tight">{word.darija}</h2>
+        <h3 className="text-4xl text-stone-500 font-arabic mb-8">{word.arabic}</h3>
+        <div className="text-2xl text-emerald-500 font-bold">"{word.german}"</div>
+      </div>
+
+      {word.sim !== 'none' && (
+        <div className="bg-emerald-950/30 border border-emerald-900/50 p-6 rounded-3xl flex flex-col sm:flex-row items-center gap-6 justify-center max-w-2xl mx-auto text-left shadow-lg">
+          <div className="w-16 h-16 bg-emerald-900/50 text-emerald-400 rounded-2xl flex items-center justify-center shrink-0">
+            <Info className="w-8 h-8" />
+          </div>
+          <div>
+            <h4 className="text-emerald-400 font-bold text-lg mb-1 flex items-center gap-2">Tmazight Vorteil</h4>
+            <p className="text-emerald-100/80 leading-relaxed">Darija nutzt hier <strong>"{word.tarifit}"</strong>. {word.note}</p>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// Engine: Grammatik
+function EngineGrammar({ grammar }) {
+  return (
+    <div className="space-y-8 animate-in zoom-in-95 duration-500">
+      <div className="inline-block px-5 py-2 bg-red-950/30 text-red-400 text-xs font-bold tracking-[0.2em] uppercase rounded-full border border-red-900/30 mb-2">
+        Sprach-Regel
+      </div>
+      <h2 className="text-4xl md:text-5xl font-bold text-white leading-tight">{grammar.title}</h2>
+      <div className="bg-stone-900 border border-stone-800 rounded-3xl p-8 text-xl text-stone-300 leading-relaxed shadow-2xl">
+        {grammar.text}
+      </div>
+    </div>
+  );
+}
+
+// Engine: Dialog
+function EngineDialogue({ dialogue }) {
+  return (
+    <div className="space-y-8 animate-in slide-in-from-bottom-8 duration-500">
+      <div className="inline-block px-5 py-2 bg-amber-950/30 text-amber-500 text-xs font-bold tracking-[0.2em] uppercase rounded-full border border-amber-900/30 mb-2">
+        Realistischer Dialog
+      </div>
+      <h2 className="text-3xl font-bold text-white mb-8">{dialogue.title}</h2>
+      
+      <div className="space-y-6">
+        {dialogue.lines.map((line, i) => {
+          const isAyoub = line.s === "Ayoub";
+          return (
+            <div key={i} className={`flex flex-col ${isAyoub ? 'items-end' : 'items-start'}`}>
+              <span className="text-xs font-bold text-stone-500 mb-2 ml-2 mr-2 uppercase tracking-wider">{line.s}</span>
+              <div className={`max-w-[85%] p-6 rounded-[2rem] ${isAyoub ? 'bg-red-800 text-white rounded-tr-md' : 'bg-stone-900 border border-stone-800 text-white rounded-tl-md'}`}>
+                <div className="text-2xl font-bold mb-3">{line.darija}</div>
+                <div className={`text-lg opacity-80 ${isAyoub ? 'text-red-100' : 'text-stone-400'}`}>"{line.d}"</div>
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+// Engine: Quiz
+function EngineQuiz({ quiz, onCorrect }) {
+  const [selected, setSelected] = useState(null);
+  
+  const handleSelect = (opt) => {
+    setSelected(opt);
+    if (opt === quiz.correct) {
+      setTimeout(() => {
+        onCorrect();
+        setSelected(null);
+      }, 1000);
+    }
+  };
+
+  return (
+    <div className="space-y-12 animate-in zoom-in-95 duration-500">
+      <div className="text-center mb-8">
+        <h2 className="text-4xl md:text-5xl font-bold text-white leading-tight">{quiz.question}</h2>
+      </div>
+      
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        {quiz.options.map((opt, i) => {
+          let btnClass = "bg-stone-900 border-stone-800 hover:bg-stone-800 hover:border-stone-600 text-stone-200";
+          if (selected) {
+            if (opt === quiz.correct) btnClass = "bg-emerald-600 border-emerald-500 text-white scale-[1.02] shadow-[0_0_20px_rgba(16,185,129,0.4)]";
+            else if (selected === opt) btnClass = "bg-red-950 border-red-900 text-red-400 opacity-50";
+            else btnClass = "bg-stone-900 border-stone-800 opacity-30";
+          }
+          return (
+            <button 
+              key={i} disabled={selected !== null} onClick={() => handleSelect(opt)}
+              className={`p-8 rounded-[2rem] border-2 text-2xl font-bold transition-all duration-300 ${btnClass}`}
+            >
+              {opt}
+            </button>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+// ==========================================
+// 4. ADMIN DASHBOARD (Verwaltung)
+// ==========================================
+function AdminDashboard({ db, appId, secondaryAuth }) {
+  const [users, setUsers] = useState([]);
+  
+  useEffect(() => {
+    const fetchUsers = async () => {
+      const usersRef = collection(db, 'artifacts', appId, 'public', 'data', 'users');
+      const snapshot = await getDocs(usersRef);
+      const loadedUsers = [];
+      snapshot.forEach(doc => loadedUsers.push({ ...doc.data(), pin: doc.data().role === 'admin' ? '0000' : '1234' }));
+      setUsers(loadedUsers);
+    };
+    fetchUsers();
+  }, [db, appId]);
+
+  return (
+    <div className="space-y-8 animate-in fade-in duration-500 max-w-5xl relative z-10">
+      <div>
+        <h2 className="text-red-500 font-bold tracking-[0.2em] uppercase text-sm mb-2">Verwaltung</h2>
+        <h1 className="text-3xl font-bold text-white mb-2 flex items-center gap-3">
+          Administrator Panel
+        </h1>
+        <p className="text-stone-400">Verwalte deine Schüler. Sie erscheinen automatisch auf dem Startbildschirm.</p>
+      </div>
+
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+        <div className="bg-stone-900 border border-stone-800 rounded-3xl p-6 flex flex-col items-center justify-center">
+          <div className="text-5xl font-bold text-amber-500 mb-2">{users.length}</div>
+          <div className="text-sm font-bold text-stone-500 uppercase tracking-widest">Aktive Konten</div>
+        </div>
+      </div>
+      
+      <div className="bg-stone-900 border border-stone-800 rounded-3xl overflow-hidden shadow-2xl">
+        <div className="p-6 border-b border-stone-800">
+          <h2 className="text-xl font-bold text-white">Systemnutzer</h2>
+        </div>
+        <table className="w-full text-left text-sm whitespace-nowrap">
+          <thead className="text-stone-500 bg-stone-950/50 border-b border-stone-800">
+            <tr>
+              <th className="px-6 py-5 font-bold uppercase tracking-wider text-xs">Name</th>
+              <th className="px-6 py-5 font-bold uppercase tracking-wider text-xs">E-Mail</th>
+              <th className="px-6 py-5 font-bold uppercase tracking-wider text-xs">Rolle</th>
+            </tr>
+          </thead>
+          <tbody className="text-stone-300 divide-y divide-stone-800/50">
+            {users.map(u => (
+              <tr key={u.id} className="hover:bg-stone-800/30 transition-colors">
+                <td className="px-6 py-5 font-bold text-white text-base">{u.name}</td>
+                <td className="px-6 py-5 text-stone-500">{u.email}</td>
+                <td className="px-6 py-5">
+                  <span className={`px-4 py-1.5 rounded-full text-xs font-bold uppercase tracking-wider border ${u.role === 'admin' ? 'bg-red-950/30 text-red-500 border-red-900/30' : 'bg-stone-800 text-stone-400 border-stone-700'}`}>
+                    {u.role}
+                  </span>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+}
+
+// ==========================================
+// 5. SIDEBAR NAVIGATION
+// ==========================================
+function Sidebar({ profile, currentView, setView, onLogout }) {
+  const isAdmin = profile?.role === 'admin';
+  const navItems = isAdmin 
+    ? [ { id: 'admin', icon: <ShieldCheck/>, label: 'Verwaltung' } ]
+    : [ { id: 'dashboard', icon: <LayoutDashboard/>, label: 'Lernen' } ];
+
+  return (
+    <aside className="hidden md:flex flex-col w-72 bg-stone-900 border-r border-stone-800 p-6 h-screen sticky top-0 z-20">
+      <div className="flex items-center gap-3 font-bold text-2xl tracking-tight text-white mb-12">
+        <div className="relative w-8 h-8 flex items-center justify-center">
+          <svg viewBox="0 0 100 100" className="w-full h-full text-emerald-600 fill-current animate-pulse"><polygon points="50,0 60,35 95,35 65,55 75,95 50,70 25,95 35,55 5,35 40,35" /></svg>
+        </div>
+        Darija<span className="text-emerald-500">Premium</span>
+      </div>
+      
+      <nav className="flex-1 space-y-2">
+        {navItems.map(item => (
+          <button key={item.id} onClick={() => setView(item.id)} className={`w-full flex items-center gap-4 px-5 py-4 rounded-2xl font-bold transition-all ${currentView === item.id ? 'bg-amber-500/10 text-amber-500 border border-amber-500/20' : 'text-stone-500 hover:bg-stone-800 hover:text-white'}`}>
+            {item.icon} {item.label}
+          </button>
+        ))}
+      </nav>
+      
+      <div className="mt-auto border-t border-stone-800 pt-6">
+        <div className="flex items-center gap-4 mb-6">
+          <div className="w-12 h-12 bg-stone-950 border border-stone-700 rounded-t-xl rounded-b-md flex items-center justify-center font-bold text-amber-500 text-xl shadow-inner">
+            {profile?.name?.charAt(0)}
+          </div>
+          <div className="overflow-hidden">
+            <div className="font-bold text-white truncate text-sm">{profile?.name}</div>
+            <div className="text-xs font-bold uppercase tracking-wider text-stone-500">{isAdmin ? 'Admin' : 'Schüler'}</div>
+          </div>
+        </div>
+        <button onClick={onLogout} className="w-full flex items-center justify-center gap-3 px-4 py-4 bg-stone-950 text-stone-400 font-bold hover:text-red-500 hover:border-red-900/50 border border-stone-800 rounded-2xl transition-all">
+          <LogOut className="w-5 h-5" /> Logout
+        </button>
+      </div>
+    </aside>
+  );
+}
