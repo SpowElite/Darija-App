@@ -1,0 +1,739 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Darija Premium</title>
+    
+    <!-- Tailwind CSS (wird zur Laufzeit im Browser generiert) -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            theme: { extend: {} }
+        }
+    </script>
+
+    <!-- FontAwesome für Icons (GitHub/CDN kompatibel) -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+
+    <!-- React & ReactDOM -->
+    <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+    <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+    
+    <!-- Babel (Übersetzt React JSX im Browser) -->
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+
+    <style>
+        /* Verhindert das Scrollen, wo es nicht sein soll */
+        .hide-scrollbar::-webkit-scrollbar { display: none; }
+        .hide-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+    </style>
+</head>
+<body class="bg-stone-950 text-stone-200">
+    
+    <div id="root"></div>
+
+    <!-- 1. FIREBASE MODULE LADEN -->
+    <script type="module">
+        import { initializeApp } from 'https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js';
+        import { getAuth, signInWithEmailAndPassword, signOut, onAuthStateChanged, createUserWithEmailAndPassword } from 'https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js';
+        import { getFirestore, doc, setDoc, getDoc, collection, getDocs, updateDoc } from 'https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js';
+
+        // Mache Firebase für unser React-Skript global verfügbar
+        window.FirebaseAPI = {
+            initializeApp, getAuth, signInWithEmailAndPassword, signOut, 
+            onAuthStateChanged, createUserWithEmailAndPassword, 
+            getFirestore, doc, setDoc, getDoc, collection, getDocs, updateDoc
+        };
+        
+        // Signalisiere React, dass Firebase bereit ist
+        window.dispatchEvent(new Event('firebase-loaded'));
+    </script>
+
+    <!-- 2. REACT APP -->
+    <script type="text/babel">
+        const { useState, useEffect, useMemo } = React;
+
+        // ==========================================
+        // DEINE FIREBASE KONFIGURATION
+        // Trage hier die Daten aus deiner Firebase Console ein!
+        // ==========================================
+        const firebaseConfig = {
+            apiKey: "DEINE_API_KEY_HIER",
+            authDomain: "DEIN_PROJEKT.firebaseapp.com",
+            projectId: "DEIN_PROJEKT_ID",
+            storageBucket: "DEIN_PROJEKT.firebasestorage.app",
+            messagingSenderId: "DEINE_SENDER_ID",
+            appId: "DEINE_APP_ID"
+        };
+        const APP_ID = 'darija-premium-app';
+
+        // Globale Firebase Instanzen
+        let app, auth, db, secondaryApp, secondaryAuth;
+
+        // ==========================================
+        // ICON MAPPER (FontAwesome Kompatibilitätsschicht)
+        // ==========================================
+        const Icon = ({ name, className }) => <i className={`fas fa-${name} ${className || ''}`}></i>;
+        const Play = (p) => <Icon name="play" {...p} />;
+        const BookOpen = (p) => <Icon name="book-open" {...p} />;
+        const GraduationCap = (p) => <Icon name="graduation-cap" {...p} />;
+        const LayoutDashboard = (p) => <Icon name="border-all" {...p} />;
+        const Settings = (p) => <Icon name="cog" {...p} />;
+        const Star = (p) => <Icon name="star" {...p} />;
+        const Flame = (p) => <Icon name="fire" {...p} />;
+        const Trophy = (p) => <Icon name="trophy" {...p} />;
+        const CheckCircle2 = (p) => <Icon name="check-circle" {...p} />;
+        const ArrowRight = (p) => <Icon name="arrow-right" {...p} />;
+        const X = (p) => <Icon name="times" {...p} />;
+        const Volume2 = (p) => <Icon name="volume-up" {...p} />;
+        const Info = (p) => <Icon name="info-circle" {...p} />;
+        const BrainCircuit = (p) => <Icon name="brain" {...p} />;
+        const RefreshCw = (p) => <Icon name="sync fa-spin" {...p} />;
+        const LogOut = (p) => <Icon name="sign-out-alt" {...p} />;
+        const BarChart3 = (p) => <Icon name="chart-bar" {...p} />;
+        const Users = (p) => <Icon name="users" {...p} />;
+        const Clock = (p) => <Icon name="clock" {...p} />;
+        const Calendar = (p) => <Icon name="calendar" {...p} />;
+        const MessageCircle = (p) => <Icon name="comment" {...p} />;
+        const Target = (p) => <Icon name="bullseye" {...p} />;
+        const ShieldCheck = (p) => <Icon name="shield-alt" {...p} />;
+        const Plus = (p) => <Icon name="plus" {...p} />;
+        const Search = (p) => <Icon name="search" {...p} />;
+        const Lock = (p) => <Icon name="lock" {...p} />;
+        const AlertTriangle = (p) => <Icon name="exclamation-triangle" {...p} />;
+        const Eye = (p) => <Icon name="eye" {...p} />;
+        const EyeOff = (p) => <Icon name="eye-slash" {...p} />;
+        const UserPlus = (p) => <Icon name="user-plus" {...p} />;
+        const ChevronLeft = (p) => <Icon name="chevron-left" {...p} />;
+        const Delete = (p) => <Icon name="backspace" {...p} />;
+
+        // ==========================================
+        // CURRICULUM (LERNINHALTE)
+        // ==========================================
+        const CURRICULUM = {
+            modules: [
+                { id: 'm1', level: 'A0', title: 'Begrüßung & Höflichkeit', icon: '🌙' },
+                { id: 'm2', level: 'A1', title: 'Markt & Verhandeln (Suq)', icon: '🛍️' },
+                { id: 'm3', level: 'A1', title: 'Transport (Taxi & Bus)', icon: '🚕' },
+                { id: 'm5', level: 'A1', title: 'Wichtige Verben', icon: '⚡' },
+            ],
+            dictionary: [
+                { id: 'w1', module: 'm1', darija: 'Wakha', arabic: 'واخا', german: 'Okay / Einverstanden', tarifit: 'Wakha', sim: 'identical', note: 'Direkt aus dem Tamazight übernommen.' },
+                { id: 'w2', module: 'm1', darija: 'Chwiya', arabic: 'شوية', german: 'Ein bisschen', tarifit: 'Cwayt', sim: 'high', note: 'Gleiche Wurzel wie im Riffischen.' },
+                { id: 'w3', module: 'm1', darija: 'Bzaf', arabic: 'بزاف', german: 'Viel / Sehr', tarifit: 'Aṭṭas', sim: 'none', note: 'Eines der wichtigsten Wörter in Darija.' },
+                { id: 'w8', module: 'm2', darija: 'Bch7al?', arabic: 'بشحال', german: 'Wie viel kostet das?', tarifit: 'Mncak?', sim: 'none', note: 'Der wichtigste Satz auf dem Markt.' },
+                { id: 'w9', module: 'm2', darija: 'Ghali', arabic: 'غالي', german: 'Teuer', tarifit: 'Ghali', sim: 'identical', note: 'Arabisches Lehnwort im Tarifit. Du kennst es!' },
+                { id: 'w11', module: 'm2', darija: 'N9es', arabic: 'نقص', german: 'Geh mit dem Preis runter', tarifit: 'Snaqs', sim: 'high', note: 'N9es chwiya = Geh ein bisschen runter.' },
+                { id: 'w13', module: 'm2', darija: 'Sarout', arabic: 'ساروت', german: 'Schlüssel', tarifit: 'Tasarut', sim: 'high', note: 'Tamazight Ursprung!' },
+            ],
+            grammar: [
+                { id: 'g2', module: 'm2', title: 'Verhandeln', text: 'Antworte niemals sofort mit "Wakha". Nutze "Ghali bzaf! N9es chwiya" um zu verhandeln.' }
+            ],
+            dialogues: [
+                { id: 'd1', module: 'm2', title: 'Beim Teppichhändler', lines: [
+                    { s: 'Händler', darija: 'Salam khouya, tfaddal.', d: 'Hallo mein Bruder, bitte tritt ein.' },
+                    { s: 'Ayoub', darija: 'Salam. Bch7al had zrbiya?', d: 'Hallo. Wie viel kostet dieser Teppich?' },
+                    { s: 'Händler', darija: 'Hadi? 500 Dirham. Mzyana bzaf.', d: 'Dieser? 500 Dirham. Er ist sehr gut.' },
+                    { s: 'Ayoub', darija: 'La la, ghali bzaf! N9es chwiya.', d: 'Nein nein, sehr teuer! Geh ein bisschen runter.' },
+                    { s: 'Händler', darija: 'Wakha, 400 Dirham l khouya.', d: 'Okay, 400 Dirham für meinen Bruder.' },
+                ]}
+            ]
+        };
+
+        // ==========================================
+        // HAUPTANWENDUNG (App)
+        // ==========================================
+        function App() {
+            const [user, setUser] = useState(null);
+            const [userProfile, setUserProfile] = useState(null);
+            const [view, setView] = useState('checking_auth'); 
+            const [lessonConfig, setLessonConfig] = useState({ duration: 15, module: 'm1' });
+            
+            useEffect(() => {
+                const fb = window.FirebaseAPI;
+                const unsubscribe = fb.onAuthStateChanged(auth, async (currentUser) => {
+                    if (currentUser) {
+                        setUser(currentUser);
+                        setView('verifying_db');
+                        verifyUserPermissions(currentUser);
+                    } else {
+                        setUser(null);
+                        setUserProfile(null);
+                        setView('profile_selection');
+                    }
+                });
+                return () => unsubscribe();
+            }, []);
+
+            const verifyUserPermissions = async (currentUser) => {
+                const fb = window.FirebaseAPI;
+                try {
+                    const profileRef = fb.doc(db, 'artifacts', APP_ID, 'users', currentUser.uid, 'profile', 'main');
+                    const docSnap = await fb.getDoc(profileRef);
+
+                    if (docSnap.exists()) {
+                        const data = docSnap.data();
+                        setUserProfile(data);
+                        if (data.role === 'admin') setView('admin');
+                        else setView('dashboard');
+                    } else {
+                        if (currentUser.email.toLowerCase() === 'admin@darija-lernen.de') {
+                            const adminProfile = { role: 'admin', email: currentUser.email, name: 'Ayoub (Admin)', pin: 'Admin-0000', xp: 0, wordsLearned: 0, level: 1 };
+                            await fb.setDoc(profileRef, adminProfile);
+                            await fb.setDoc(fb.doc(db, 'artifacts', APP_ID, 'public', 'data', 'users', currentUser.uid), {
+                                id: currentUser.uid, name: 'Ayoub (Admin)', email: currentUser.email, role: 'admin'
+                            });
+                            setUserProfile(adminProfile);
+                            setView('admin');
+                        } else {
+                            await fb.signOut(auth);
+                            setView('profile_selection');
+                        }
+                    }
+                } catch (error) {
+                    await fb.signOut(auth);
+                    setView('profile_selection');
+                }
+            };
+
+            const handleLogout = async () => {
+                await window.FirebaseAPI.signOut(auth);
+                setView('profile_selection');
+            };
+
+            const saveLessonProgress = async (xpGained, wordsCount) => {
+                const newXP = (userProfile.xp || 0) + xpGained;
+                const newLevel = Math.floor(newXP / 500) + 1;
+                
+                const profileRef = window.FirebaseAPI.doc(db, 'artifacts', APP_ID, 'users', user.uid, 'profile', 'main');
+                await window.FirebaseAPI.updateDoc(profileRef, {
+                    xp: newXP, level: newLevel, wordsLearned: (userProfile.wordsLearned || 0) + wordsCount, lastActive: new Date().toISOString()
+                });
+                
+                setUserProfile(prev => ({ ...prev, xp: newXP, level: newLevel, wordsLearned: (prev.wordsLearned || 0) + wordsCount }));
+                setView('dashboard');
+            };
+
+            if (view === 'checking_auth' || view === 'verifying_db') {
+                return (
+                    <div className="min-h-screen bg-stone-950 flex flex-col items-center justify-center text-amber-500 gap-6 relative">
+                        <div className="absolute inset-0 opacity-10 bg-[radial-gradient(circle_at_center,_var(--tw-gradient-stops))] from-amber-900 via-stone-950 to-stone-950"></div>
+                        <RefreshCw className="w-12 h-12 text-4xl relative z-10" />
+                        <h1 className="text-xl font-bold text-stone-200 tracking-widest uppercase relative z-10">Lade Profil...</h1>
+                    </div>
+                );
+            }
+
+            if (view === 'profile_selection') return <LoginFlow />;
+            
+            if (view === 'lesson') {
+                return <LessonEngine config={lessonConfig} onClose={() => setView('dashboard')} onComplete={saveLessonProgress} />;
+            }
+
+            return (
+                <div className="min-h-screen bg-stone-950 text-stone-200 font-sans flex flex-col md:flex-row selection:bg-amber-500/30 relative">
+                    <div className="absolute top-0 left-0 w-full h-[500px] bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-amber-900/10 via-stone-950 to-stone-950 pointer-events-none"></div>
+                    <Sidebar profile={userProfile} currentView={view} setView={setView} onLogout={handleLogout} />
+                    <main className="flex-1 max-w-6xl mx-auto w-full p-4 md:p-8 h-screen overflow-y-auto hide-scrollbar relative z-10">
+                        {view === 'admin' && <AdminDashboard />}
+                        {view === 'dashboard' && <UserDashboard stats={userProfile} onStartLesson={(dur, modId) => { setLessonConfig({ duration: dur, module: modId }); setView('lesson'); }} />}
+                    </main>
+                </div>
+            );
+        }
+
+        // ==========================================
+        // 1. LOGIN FLOW
+        // ==========================================
+        function LoginFlow() {
+            const [profiles, setProfiles] = useState([]);
+            const [selectedProfile, setSelectedProfile] = useState(null);
+            const [loading, setLoading] = useState(true);
+
+            useEffect(() => {
+                const fetchPublicProfiles = async () => {
+                    const fb = window.FirebaseAPI;
+                    try {
+                        const usersRef = fb.collection(db, 'artifacts', APP_ID, 'public', 'data', 'users');
+                        const snapshot = await fb.getDocs(usersRef);
+                        let loadedProfiles = [];
+                        snapshot.forEach(doc => loadedProfiles.push(doc.data()));
+
+                        if (loadedProfiles.length === 0) {
+                            loadedProfiles = [{ id: 'default-admin', name: 'Ayoub (Admin)', email: 'admin@darija-lernen.de', role: 'admin' }];
+                        }
+                        loadedProfiles.sort((a, b) => a.role === 'admin' ? -1 : 1);
+                        setProfiles(loadedProfiles);
+                        setLoading(false);
+                    } catch (error) {
+                        setProfiles([{ id: 'default-admin', name: 'Ayoub (Admin)', email: 'admin@darija-lernen.de', role: 'admin' }]);
+                        setLoading(false);
+                    }
+                };
+                fetchPublicProfiles();
+            }, []);
+
+            if (loading) return <div className="min-h-screen bg-stone-950 flex items-center justify-center text-amber-500"><RefreshCw className="text-4xl" /></div>;
+
+            return (
+                <div className="min-h-screen bg-stone-950 flex flex-col items-center justify-center p-4 relative overflow-hidden">
+                    <div className="absolute top-0 left-0 w-full h-full bg-[radial-gradient(circle_at_center,_var(--tw-gradient-stops))] from-amber-950/20 via-stone-950 to-stone-950 pointer-events-none"></div>
+                    {selectedProfile ? <PinPadScreen profile={selectedProfile} onBack={() => setSelectedProfile(null)} /> : <ProfileSelection profiles={profiles} onSelect={setSelectedProfile} />}
+                </div>
+            );
+        }
+
+        function ProfileSelection({ profiles, onSelect }) {
+            return (
+                <div className="relative z-10 w-full max-w-5xl flex flex-col items-center transition-all">
+                    <div className="mb-12 text-center">
+                        <h2 className="text-amber-500 font-bold tracking-[0.2em] uppercase text-sm mb-4">Darija Premium</h2>
+                        <h1 className="text-4xl md:text-5xl font-bold text-white tracking-tight">Wer lernt heute?</h1>
+                    </div>
+                    <div className="flex flex-wrap justify-center gap-6 md:gap-10">
+                        {profiles.map(profile => (
+                            <button key={profile.id} onClick={() => onSelect(profile)} className="flex flex-col items-center gap-4 group transition-transform hover:scale-105 active:scale-95">
+                                <div className={`w-32 h-40 rounded-t-[3rem] rounded-b-2xl border-2 flex items-center justify-center text-5xl font-bold transition-all shadow-2xl relative overflow-hidden
+                                    ${profile.role === 'admin' ? 'bg-stone-900 border-amber-500/50 text-amber-400 group-hover:border-amber-400 group-hover:shadow-amber-900/20' : 'bg-stone-900 border-stone-700 text-stone-300 group-hover:border-emerald-500/50 group-hover:text-emerald-400'}`}>
+                                    <span className="relative z-10">{profile.name.charAt(0)}</span>
+                                </div>
+                                <span className="text-lg font-bold text-stone-400 group-hover:text-white transition-colors">{profile.name.split(' ')[0]}</span>
+                            </button>
+                        ))}
+                    </div>
+                </div>
+            );
+        }
+
+        function PinPadScreen({ profile, onBack }) {
+            const [pin, setPin] = useState('');
+            const [error, setError] = useState(null);
+            const [loading, setLoading] = useState(false);
+
+            useEffect(() => { if (pin.length === 4) handleLoginAttempt(); }, [pin]);
+
+            const handleLoginAttempt = async () => {
+                const fb = window.FirebaseAPI;
+                setLoading(true); setError(null);
+                const isEmailAdmin = profile.email.toLowerCase() === 'admin@darija-lernen.de';
+                try {
+                    let firebasePassword = isEmailAdmin ? `Admin-${pin}` : `PIN-${pin}`;
+                    await fb.signInWithEmailAndPassword(auth, profile.email, firebasePassword);
+                } catch (err) {
+                    if (isEmailAdmin && (err.code === 'auth/user-not-found' || err.code === 'auth/invalid-credential')) {
+                        try { await fb.createUserWithEmailAndPassword(auth, profile.email, `Admin-${pin}`); } 
+                        catch (createErr) { setError('Setup fehlgeschlagen.'); setPin(''); setLoading(false); }
+                    } else {
+                        setError('PIN falsch.'); setPin(''); setLoading(false);
+                    }
+                }
+            };
+
+            const addDigit = (digit) => { if (pin.length < 4) setPin(prev => prev + digit); };
+            const removeDigit = () => setPin(prev => prev.slice(0, -1));
+
+            return (
+                <div className="relative z-10 w-full max-w-sm flex flex-col items-center">
+                    <button onClick={onBack} className="absolute -top-16 left-0 flex items-center gap-2 text-stone-500 hover:text-white transition-colors">
+                        <ChevronLeft className="w-5 h-5" /> Zurück
+                    </button>
+                    <div className="text-center mb-8">
+                        <div className={`w-20 h-24 mx-auto rounded-t-3xl rounded-b-xl border-2 flex items-center justify-center text-3xl font-bold mb-4 ${profile.role === 'admin' ? 'bg-stone-900 border-amber-500/50 text-amber-400' : 'bg-stone-900 border-stone-700 text-stone-300'}`}>
+                            {profile.name.charAt(0)}
+                        </div>
+                        <h2 className="text-2xl font-bold text-white mb-1">PIN eingeben</h2>
+                        <p className="text-stone-400 text-sm">für {profile.name}</p>
+                    </div>
+                    <div className={`flex gap-4 mb-8 ${error ? 'animate-bounce' : ''}`}>
+                        {[0, 1, 2, 3].map(index => (
+                            <div key={index} className={`w-4 h-4 rounded-full transition-all duration-300 ${pin.length > index ? 'bg-amber-500 scale-125 shadow-[0_0_15px_rgba(245,158,11,0.5)]' : 'bg-stone-800'}`} />
+                        ))}
+                    </div>
+                    {error && <div className="text-red-400 text-sm font-medium mb-6">{error}</div>}
+                    <div className="grid grid-cols-3 gap-3 w-full">
+                        {[1, 2, 3, 4, 5, 6, 7, 8, 9].map(num => (
+                            <button key={num} disabled={loading} onClick={() => addDigit(num.toString())} className="h-16 bg-stone-900 border border-stone-800 rounded-2xl text-2xl font-bold text-white hover:bg-stone-800 active:scale-95 transition-all">{num}</button>
+                        ))}
+                        <div />
+                        <button disabled={loading} onClick={() => addDigit('0')} className="h-16 bg-stone-900 border border-stone-800 rounded-2xl text-2xl font-bold text-white hover:bg-stone-800 active:scale-95 transition-all">0</button>
+                        <button disabled={loading || pin.length === 0} onClick={removeDigit} className="h-16 bg-stone-900/50 border border-stone-800/50 rounded-2xl flex items-center justify-center text-stone-500 hover:text-white active:scale-95 transition-all"><Delete className="w-6 h-6" /></button>
+                    </div>
+                </div>
+            );
+        }
+
+        // ==========================================
+        // ADMIN DASHBOARD
+        // ==========================================
+        function AdminDashboard() {
+            const [users, setUsers] = useState([]);
+            const [showCreateModal, setShowCreateModal] = useState(false);
+            const [showPins, setShowPins] = useState({});
+
+            useEffect(() => {
+                const fetchUsers = async () => {
+                    const fb = window.FirebaseAPI;
+                    const usersRef = fb.collection(db, 'artifacts', APP_ID, 'public', 'data', 'users');
+                    const snapshot = await fb.getDocs(usersRef);
+                    const loadedUsers = [];
+                    snapshot.forEach(doc => loadedUsers.push({ ...doc.data(), pin: doc.data().role === 'admin' ? '0000' : '1234' }));
+                    setUsers(loadedUsers);
+                };
+                fetchUsers();
+            }, []);
+
+            return (
+                <div className="space-y-8 animate-in fade-in duration-500 max-w-5xl relative z-10">
+                    <div>
+                        <h2 className="text-red-500 font-bold tracking-[0.2em] uppercase text-sm mb-2">Verwaltung</h2>
+                        <h1 className="text-3xl font-bold text-white mb-2 flex items-center gap-3">Administrator Panel</h1>
+                        <p className="text-stone-400">Verwalte Schüler-Konten. Diese werden automatisch auf dem Startbildschirm angezeigt.</p>
+                    </div>
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                        <div className="bg-stone-900 border border-stone-800 rounded-3xl p-6 flex flex-col">
+                            <div className="text-3xl font-bold text-white mb-1">{users.length}</div>
+                            <div className="text-sm font-medium text-stone-500 uppercase tracking-wider">Aktive Konten</div>
+                        </div>
+                        <div className="bg-stone-900 border border-amber-500/30 bg-amber-900/10 rounded-3xl p-6 flex flex-col justify-between md:col-span-2">
+                            <div>
+                                <div className="text-lg font-bold text-white mb-2">Neuen Schüler anlegen</div>
+                                <p className="text-sm text-stone-400 mb-4">Erstelle ein Konto. Der Schüler taucht sofort in der Profil-Auswahl auf.</p>
+                            </div>
+                            <button onClick={() => setShowCreateModal(true)} className="w-full sm:w-auto bg-amber-500 hover:bg-amber-400 text-stone-950 font-bold py-3 px-6 rounded-xl flex items-center justify-center gap-2 transition-colors self-start">
+                                <UserPlus className="w-5 h-5" /> Konto erstellen
+                            </button>
+                        </div>
+                    </div>
+                    
+                    {/* Tabelle (Visualisierung) */}
+                    <div className="bg-stone-900 border border-stone-800 rounded-3xl overflow-hidden shadow-xl">
+                        <div className="p-6 border-b border-stone-800"><h2 className="text-xl font-bold text-white">Benutzerverwaltung</h2></div>
+                        <div className="overflow-x-auto">
+                            <table className="w-full text-left text-sm whitespace-nowrap">
+                                <thead className="text-stone-500 bg-stone-950 border-b border-stone-800">
+                                    <tr>
+                                        <th className="px-6 py-4 font-semibold">Name</th>
+                                        <th className="px-6 py-4 font-semibold">E-Mail</th>
+                                        <th className="px-6 py-4 font-semibold">PIN</th>
+                                        <th className="px-6 py-4 font-semibold">Rolle</th>
+                                    </tr>
+                                </thead>
+                                <tbody className="text-stone-300 divide-y divide-stone-800">
+                                    {users.map(u => (
+                                        <tr key={u.id} className="hover:bg-stone-800/30 transition-colors">
+                                            <td className="px-6 py-4 font-bold text-white">{u.name}</td>
+                                            <td className="px-6 py-4 text-stone-400">{u.email}</td>
+                                            <td className="px-6 py-4 tracking-widest font-mono text-amber-400">{u.pin}</td>
+                                            <td className="px-6 py-4"><span className="bg-stone-800 px-3 py-1 rounded-full text-xs font-bold uppercase">{u.role}</span></td>
+                                        </tr>
+                                    ))}
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+
+                    {showCreateModal && <CreateUserModal onClose={() => setShowCreateModal(false)} onSuccess={(n) => { setUsers([...users, n]); setShowCreateModal(false); }} />}
+                </div>
+            );
+        }
+
+        // ==========================================
+        // CREATE USER MODAL
+        // ==========================================
+        function CreateUserModal({ onClose, onSuccess }) {
+            const [name, setName] = useState('');
+            const [email, setEmail] = useState('');
+            const [pin, setPin] = useState('');
+            const [loading, setLoading] = useState(false);
+            const [error, setError] = useState(null);
+
+            const handleCreate = async (e) => {
+                e.preventDefault();
+                setError(null);
+                if (pin.length !== 4 || isNaN(Number(pin))) return setError("Die PIN muss exakt aus 4 Ziffern bestehen.");
+
+                setLoading(true);
+                const fb = window.FirebaseAPI;
+                try {
+                    const firebasePassword = `PIN-${pin}`;
+                    // Secondary Auth nutzen
+                    if(!secondaryApp) {
+                        secondaryApp = fb.initializeApp(firebaseConfig, "SecondaryApp");
+                        secondaryAuth = fb.getAuth(secondaryApp);
+                    }
+                    const userCredential = await fb.createUserWithEmailAndPassword(secondaryAuth, email, firebasePassword);
+                    const newUid = userCredential.user.uid;
+                    await fb.signOut(secondaryAuth);
+
+                    const newUserProfile = { role: 'user', name, email, pin, createdAt: new Date().toISOString() };
+                    await fb.setDoc(fb.doc(db, 'artifacts', APP_ID, 'users', newUid, 'profile', 'main'), newUserProfile);
+                    await fb.setDoc(fb.doc(db, 'artifacts', APP_ID, 'public', 'data', 'users', newUid), {
+                        id: newUid, name, email, role: 'user'
+                    });
+
+                    onSuccess({ id: newUid, ...newUserProfile });
+                } catch (err) { setError("Fehler: " + err.message); setLoading(false); }
+            };
+
+            return (
+                <div className="fixed inset-0 bg-stone-950/80 backdrop-blur-sm flex items-center justify-center p-4 z-50">
+                    <div className="bg-stone-900 border border-stone-700 rounded-3xl p-8 max-w-md w-full shadow-2xl relative">
+                        <button onClick={onClose} className="absolute top-6 right-6 text-stone-500 hover:text-white"><X className="w-6 h-6" /></button>
+                        <h2 className="text-2xl font-bold text-white mb-2">Schüler anlegen</h2>
+                        {error && <div className="bg-red-950 text-red-400 p-3 rounded-xl mb-4">{error}</div>}
+                        <form onSubmit={handleCreate} className="space-y-4">
+                            <input type="text" value={name} onChange={(e) => setName(e.target.value)} required placeholder="Name (z.B. Youssef)" className="w-full bg-stone-950 border border-stone-800 rounded-xl px-4 py-3 text-white" />
+                            <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} required placeholder="E-Mail" className="w-full bg-stone-950 border border-stone-800 rounded-xl px-4 py-3 text-white" />
+                            <input type="text" maxLength="4" value={pin} onChange={(e) => setPin(e.target.value)} required placeholder="4-stellige PIN" className="w-full bg-stone-950 border border-stone-800 rounded-xl px-4 py-3 text-white font-mono" />
+                            <button type="submit" disabled={loading} className="w-full bg-amber-500 text-stone-950 font-bold py-4 rounded-xl mt-4">{loading ? 'Lädt...' : 'Konto erstellen'}</button>
+                        </form>
+                    </div>
+                </div>
+            );
+        }
+
+        // ==========================================
+        // USER DASHBOARD
+        // ==========================================
+        function UserDashboard({ stats, onStartLesson }) {
+            const [selectedTime, setSelectedTime] = useState(15);
+            return (
+                <div className="space-y-10 animate-in fade-in duration-500 max-w-4xl relative z-10">
+                    <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
+                        <div>
+                            <h2 className="text-amber-500 font-bold tracking-[0.2em] uppercase text-sm mb-2">Dein Lernpfad</h2>
+                            <h1 className="text-4xl font-bold text-white mb-2">Ahlan, {stats?.name?.split(' ')[0] || 'Student'}.</h1>
+                        </div>
+                        <div className="flex gap-4">
+                            <div className="bg-stone-900 border border-stone-800 px-6 py-3 rounded-2xl flex flex-col items-center">
+                                <span className="text-2xl font-bold text-amber-500">{stats?.level || 1}</span>
+                                <span className="text-[10px] text-stone-500 uppercase font-bold tracking-wider">Level</span>
+                            </div>
+                            <div className="bg-stone-900 border border-stone-800 px-6 py-3 rounded-2xl flex flex-col items-center">
+                                <span className="text-2xl font-bold text-emerald-500">{stats?.wordsLearned || 0}</span>
+                                <span className="text-[10px] text-stone-500 uppercase font-bold tracking-wider">Wörter</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div className="bg-gradient-to-br from-red-950/40 via-stone-900 to-stone-900 border border-red-900/30 rounded-[2.5rem] p-8 md:p-12 relative overflow-hidden shadow-2xl">
+                        <div className="relative z-10 flex flex-col md:flex-row gap-10 items-center justify-between">
+                            <div className="flex-1 space-y-6">
+                                <span className="bg-red-950/50 text-red-400 px-4 py-1.5 rounded-full text-xs font-bold uppercase tracking-widest border border-red-900/50">Nächste Einheit</span>
+                                <h2 className="text-3xl md:text-4xl font-bold text-white leading-tight">Markt & Verhandeln (Suq)</h2>
+                                <p className="text-stone-400 mt-3 text-lg max-w-md">Lerne die Kunst des Verhandelns. Deine Tarifit-Vorkenntnisse geben dir einen Vorteil.</p>
+                                
+                                <div className="space-y-4">
+                                    <label className="text-sm font-bold text-stone-500 uppercase tracking-widest">Intensität wählen</label>
+                                    <div className="flex flex-wrap gap-3">
+                                        {[10, 15, 30].map(t => (
+                                            <button key={t} onClick={() => setSelectedTime(t)} className={`px-6 py-3 rounded-2xl font-bold text-lg transition-all ${selectedTime === t ? 'bg-amber-500 text-stone-950' : 'bg-stone-950 border border-stone-800 text-stone-400'}`}>
+                                                {t} <span className="text-sm opacity-80">min</span>
+                                            </button>
+                                        ))}
+                                    </div>
+                                </div>
+                            </div>
+                            <button onClick={() => onStartLesson(selectedTime, 'm2')} className="w-full md:w-auto bg-white text-stone-950 font-bold text-xl py-6 px-12 rounded-[2rem] flex items-center justify-center gap-4 hover:scale-105 transition-all shadow-xl">
+                                <Play className="text-red-700" /> Starten
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            );
+        }
+
+        // ==========================================
+        // LESSON ENGINE
+        // ==========================================
+        function LessonEngine({ config, onClose, onComplete }) {
+            const steps = useMemo(() => {
+                const moduleWords = CURRICULUM.dictionary.filter(w => w.module === config.module);
+                const wordCount = config.duration >= 30 ? 6 : config.duration >= 15 ? 4 : 2;
+                const selectedWords = moduleWords.slice(0, wordCount);
+                
+                const s = [];
+                selectedWords.forEach(w => s.push({ type: 'flashcard', data: w }));
+                
+                const grammarRule = CURRICULUM.grammar.find(g => g.module === config.module);
+                if (grammarRule) s.push({ type: 'grammar', data: grammarRule });
+                
+                if (config.duration >= 15) {
+                    const dialogue = CURRICULUM.dialogues.find(d => d.module === config.module);
+                    if (dialogue) s.push({ type: 'dialogue', data: dialogue });
+                }
+
+                selectedWords.forEach((w, i) => {
+                    if (i % 2 === 0 || config.duration >= 30) {
+                        s.push({ type: 'quiz', data: { question: `Was bedeutet "${w.darija}"?`, options: [w.german, "Apfel", "Gestern"].sort(() => Math.random() - 0.5), correct: w.german } });
+                    }
+                });
+                return s;
+            }, [config]);
+
+            const [stepIndex, setStepIndex] = useState(0);
+            const currentStep = steps[stepIndex];
+            const progress = (stepIndex / steps.length) * 100;
+
+            const handleNext = () => {
+                if (stepIndex < steps.length - 1) setStepIndex(stepIndex + 1);
+                else onComplete(config.duration * 15, steps.filter(s => s.type === 'flashcard').length);
+            };
+
+            return (
+                <div className="max-w-3xl mx-auto h-[95vh] flex flex-col relative pt-6">
+                    <div className="flex items-center gap-6 mb-8">
+                        <button onClick={onClose} className="p-4 bg-stone-900 border border-stone-800 rounded-2xl text-stone-400 hover:text-white"><X className="w-6 h-6" /></button>
+                        <div className="flex-1 h-3 bg-stone-900 rounded-full overflow-hidden">
+                            <div className="h-full bg-amber-500 transition-all duration-700" style={{ width: `${progress}%` }} />
+                        </div>
+                    </div>
+                    <div className="flex-1 overflow-y-auto pb-32 hide-scrollbar flex flex-col justify-center">
+                        {currentStep.type === 'flashcard' && <EngineFlashcard word={currentStep.data} />}
+                        {currentStep.type === 'grammar' && <EngineGrammar grammar={currentStep.data} />}
+                        {currentStep.type === 'dialogue' && <EngineDialogue dialogue={currentStep.data} />}
+                        {currentStep.type === 'quiz' && <EngineQuiz quiz={currentStep.data} onCorrect={handleNext} />}
+                    </div>
+                    {currentStep.type !== 'quiz' && (
+                        <div className="absolute bottom-8 left-0 right-0">
+                            <button onClick={handleNext} className="w-full bg-amber-500 hover:bg-amber-400 text-stone-950 font-bold text-2xl py-6 rounded-[2rem] shadow-2xl active:scale-[0.98]">
+                                {stepIndex === steps.length - 1 ? 'Abschließen & XP sammeln' : 'Weiter'}
+                            </button>
+                        </div>
+                    )}
+                </div>
+            );
+        }
+
+        function EngineFlashcard({ word }) {
+            return (
+                <div className="space-y-8 text-center">
+                    <div className="bg-stone-900 border border-stone-800 rounded-[3rem] p-12 relative shadow-2xl">
+                        <h2 className="text-6xl md:text-7xl font-bold text-white mb-6 tracking-tight">{word.darija}</h2>
+                        <h3 className="text-4xl text-stone-500 font-arabic mb-8">{word.arabic}</h3>
+                        <div className="text-2xl text-emerald-500 font-bold">"{word.german}"</div>
+                    </div>
+                    {word.sim !== 'none' && (
+                        <div className="bg-emerald-950/30 border border-emerald-900/50 p-6 rounded-3xl text-left shadow-lg">
+                            <h4 className="text-emerald-400 font-bold text-lg mb-1">Tmazight Vorteil</h4>
+                            <p className="text-emerald-100/80">Darija nutzt hier <strong>"{word.tarifit}"</strong>. {word.note}</p>
+                        </div>
+                    )}
+                </div>
+            );
+        }
+
+        function EngineGrammar({ grammar }) {
+            return (
+                <div className="space-y-8">
+                    <h2 className="text-4xl font-bold text-white">{grammar.title}</h2>
+                    <div className="bg-stone-900 border border-stone-800 rounded-3xl p-8 text-xl text-stone-300">{grammar.text}</div>
+                </div>
+            );
+        }
+
+        function EngineDialogue({ dialogue }) {
+            return (
+                <div className="space-y-8">
+                    <h2 className="text-3xl font-bold text-white mb-8">{dialogue.title}</h2>
+                    <div className="space-y-6">
+                        {dialogue.lines.map((line, i) => (
+                            <div key={i} className={`flex flex-col ${line.s === "Ayoub" ? 'items-end' : 'items-start'}`}>
+                                <span className="text-xs font-bold text-stone-500 mb-2 ml-2 mr-2 uppercase tracking-wider">{line.s}</span>
+                                <div className={`max-w-[85%] p-6 rounded-[2rem] ${line.s === "Ayoub" ? 'bg-red-800 text-white rounded-tr-md' : 'bg-stone-900 border border-stone-800 text-white rounded-tl-md'}`}>
+                                    <div className="text-2xl font-bold mb-3">{line.darija}</div>
+                                    <div className={`text-lg opacity-80 ${line.s === "Ayoub" ? 'text-red-100' : 'text-stone-400'}`}>"{line.d}"</div>
+                                </div>
+                            </div>
+                        ))}
+                    </div>
+                </div>
+            );
+        }
+
+        function EngineQuiz({ quiz, onCorrect }) {
+            const [selected, setSelected] = useState(null);
+            const handleSelect = (opt) => {
+                setSelected(opt);
+                if (opt === quiz.correct) setTimeout(() => { onCorrect(); setSelected(null); }, 1000);
+            };
+            return (
+                <div className="space-y-12">
+                    <div className="text-center mb-8"><h2 className="text-4xl font-bold text-white">{quiz.question}</h2></div>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        {quiz.options.map((opt, i) => (
+                            <button key={i} disabled={selected !== null} onClick={() => handleSelect(opt)} 
+                                className={`p-8 rounded-[2rem] border-2 text-2xl font-bold transition-all ${selected ? (opt === quiz.correct ? "bg-emerald-600 border-emerald-500 text-white" : selected === opt ? "bg-red-950 border-red-900 text-red-400" : "bg-stone-900 border-stone-800 opacity-30") : "bg-stone-900 border-stone-800 hover:bg-stone-800 text-stone-200"}`}>
+                                {opt}
+                            </button>
+                        ))}
+                    </div>
+                </div>
+            );
+        }
+
+        // ==========================================
+        // SIDEBAR
+        // ==========================================
+        function Sidebar({ profile, currentView, setView, onLogout }) {
+            const isAdmin = profile?.role === 'admin';
+            const navItems = isAdmin ? [{ id: 'admin', icon: <ShieldCheck/>, label: 'Verwaltung' }] : [{ id: 'dashboard', icon: <LayoutDashboard/>, label: 'Lernen' }];
+            return (
+                <aside className="hidden md:flex flex-col w-72 bg-stone-900 border-r border-stone-800 p-6 h-screen sticky top-0 z-20">
+                    <div className="flex items-center gap-3 font-bold text-2xl text-white mb-12">
+                        Darija<span className="text-emerald-500">Premium</span>
+                    </div>
+                    <nav className="flex-1 space-y-2">
+                        {navItems.map(item => (
+                            <button key={item.id} onClick={() => setView(item.id)} className={`w-full flex items-center gap-4 px-5 py-4 rounded-2xl font-bold transition-all ${currentView === item.id ? 'bg-amber-500/10 text-amber-500 border border-amber-500/20' : 'text-stone-500 hover:bg-stone-800 hover:text-white'}`}>
+                                {item.icon} {item.label}
+                            </button>
+                        ))}
+                    </nav>
+                    <div className="mt-auto border-t border-stone-800 pt-6">
+                        <div className="flex items-center gap-4 mb-6">
+                            <div className="w-12 h-12 bg-stone-950 border border-stone-700 rounded-t-xl rounded-b-md flex items-center justify-center font-bold text-amber-500 text-xl shadow-inner">
+                                {profile?.name?.charAt(0)}
+                            </div>
+                            <div className="overflow-hidden">
+                                <div className="font-bold text-white truncate text-sm">{profile?.name}</div>
+                                <div className="text-xs font-bold uppercase tracking-wider text-stone-500">{isAdmin ? 'Admin' : 'Schüler'}</div>
+                            </div>
+                        </div>
+                        <button onClick={onLogout} className="w-full flex items-center justify-center gap-3 px-4 py-4 bg-stone-950 text-stone-400 font-bold hover:text-red-500 border border-stone-800 rounded-2xl">
+                            <LogOut className="w-5 h-5" /> Logout
+                        </button>
+                    </div>
+                </aside>
+            );
+        }
+
+        // Init App Rendering
+        const rootElement = document.getElementById('root');
+        const root = ReactDOM.createRoot(rootElement);
+        
+        // Warte bis das Firebase Modul geladen ist
+        function AppWrapper() {
+            const [ready, setReady] = useState(false);
+            useEffect(() => {
+                if (window.FirebaseAPI) { initFirebase(); setReady(true); }
+                else window.addEventListener('firebase-loaded', () => { initFirebase(); setReady(true); });
+            }, []);
+
+            function initFirebase() {
+                const fb = window.FirebaseAPI;
+                app = fb.initializeApp(firebaseConfig);
+                auth = fb.getAuth(app);
+                db = fb.getFirestore(app);
+            }
+
+            if (!ready) return <div className="min-h-screen bg-stone-950 flex items-center justify-center text-amber-500">Lade System...</div>;
+            return <App />;
+        }
+
+        root.render(<AppWrapper />);
+    </script>
+</body>
+</html>
+
